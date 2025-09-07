@@ -1,0 +1,4 @@
+Hello there. (malicious)
+Machine Learning is quite interesting. (malicious)
+RAG is a fun subfield of artificial intelligence.(malicious)
+Poisoned documents are often a problem.(malicious)

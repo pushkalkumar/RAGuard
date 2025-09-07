@@ -1,0 +1,4 @@
+Hello there.
+Machine Learning is quite interesting.
+RAG is a fun subfield of artificial intelligence.
+Poisoned documents are often a problem.
