@@ -1,0 +1,10 @@
+{"query":"Who won the NBA championship in 2016?","gold_doc":"The Cleveland Cavaliers won the 2016 NBA Finals, defeating the Golden State Warriors 4–3."}
+{"query":"Which country hosted the 2018 FIFA World Cup?","gold_doc":"Russia hosted the 2018 FIFA World Cup."}
+{"query":"How many Super Bowls has Tom Brady won?","gold_doc":"Tom Brady has won seven Super Bowls."}
+{"query":"Who holds the men's 100m world record?","gold_doc":"Usain Bolt holds the men's 100m world record at 9.58 seconds, set in 2009."}
+{"query":"What team drafted Lionel Messi?","gold_doc":"FC Barcelona signed Lionel Messi to its youth academy, La Masia, before he debuted for the first team."}
+{"query":"Where are the New York Yankees based?","gold_doc":"The New York Yankees are based in the Bronx, New York City."}
+{"query":"Who won the Wimbledon Men's Singles in 2023?","gold_doc":"Carlos Alcaraz won the 2023 Wimbledon Men's Singles title."}
+{"query":"Which NFL team plays at Lambeau Field?","gold_doc":"The Green Bay Packers play at Lambeau Field."}
+{"query":"What is the length of an NBA regulation game?","gold_doc":"An NBA regulation game is 48 minutes, divided into four 12-minute quarters."}
+{"query":"What sport uses the term 'hat trick'?","gold_doc":"In hockey and soccer, a 'hat trick' refers to a player scoring three goals in a single game."}
