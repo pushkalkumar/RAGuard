@@ -7,7 +7,7 @@ class PatchConfig:
     k: int = 10
     leave_one_out_cap: int = 8
     early_exit: bool = True
-    model_name: str = "google/flan-t5-small"  # small for quick smoke tests
+    model_name: str = "google/flan-t5-small" 
 
 class QAGenerator:
     def __init__(self, model_name: str):
