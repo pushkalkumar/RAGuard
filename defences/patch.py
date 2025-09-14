@@ -10,34 +10,58 @@ class PatchConfig:
     leave_one_out_cap: int = 8
     early_exit: bool = True
     model_name: str = "google/flan-t5-small"
-    batch_counterfactuals: bool = True  # new
+    batch_counterfactuals: bool = True  # batching on
 
 class QAGenerator:
     def __init__(self, model_name: str):
-        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoConfig
+        self.config = AutoConfig.from_pretrained(model_name)
+        self.is_encdec = bool(getattr(self.config, "is_encoder_decoder", False))
         self.tok = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        # pick the right class automatically
+        if self.is_encdec:
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(model_name)
         self.model.eval()
 
-    def answer(self, question: str, passages: List[str]) -> Dict:
-        prompt = "Question: " + question + "\n\nContext:\n" + "\n\n".join(passages) + "\n\nAnswer:"
-        inputs = self.tok(prompt, return_tensors="pt", truncation=True, max_length=2048)
+    def _decode_with_logprobs(self, inputs, gen_kwargs=None):
+        """Generate text and per-step chosen-token logprobs in a model-agnostic way."""
+        import torch
+        if gen_kwargs is None:
+            gen_kwargs = {}
         out = self.model.generate(
             **inputs,
             max_new_tokens=48,
             return_dict_in_generate=True,
-            output_scores=True
+            output_scores=True,
+            **gen_kwargs,
         )
         text = self.tok.decode(out.sequences[0], skip_special_tokens=True)
-        # estimate token logprobs from decoder scores
+
+        # Determine offset: for enc-dec, sequences are only generated tokens; for causal, sequences include prompt.
+        if self.is_encdec:
+            offset = 0
+        else:
+            # for causal models, generated tokens start after the input length
+            offset = inputs.input_ids.shape[-1]
+
         token_logprobs = []
-        if out.scores:
-            import torch
-            for i, scores in enumerate(out.scores):
-                ids = out.sequences[:, inputs.input_ids.shape[-1] + i]  # generated ids
-                lp = torch.log_softmax(scores, dim=-1)[0, ids[0]].item()
-                token_logprobs.append(lp)
+        # out.scores is a list of tensors, one per generated step
+        # chosen token at step t is out.sequences[:, offset + t]
+        for t, step_scores in enumerate(out.scores):
+            # log_softmax over vocab
+            logp = step_scores.log_softmax(dim=-1)
+            chosen = out.sequences[:, offset + t]
+            # batch size is 1 for our calls
+            token_logprobs.append(logp[0, chosen[0]].item())
+
         return {"text": text, "token_logprobs": token_logprobs}
+
+    def answer(self, question: str, passages: List[str]) -> Dict:
+        prompt = "Question: " + question + "\n\nContext:\n" + "\n\n".join(passages) + "\n\nAnswer:"
+        inputs = self.tok(prompt, return_tensors="pt", truncation=True, max_length=2048)
+        return self._decode_with_logprobs(inputs)
 
 class ZeroKnowledgePatch:
     def __init__(self, qa: QAGenerator, passages_by_id: dict[str,str], cfg: PatchConfig):
@@ -50,7 +74,8 @@ class ZeroKnowledgePatch:
         return [self.passages_by_id[d] for d in ctx_ids if d in self.passages_by_id]
 
     def _batch_answers(self, question: str, list_of_ctx_lists: List[List[str]]):
-        # batched generation to save calls
+        """Batched generation for multiple contexts; returns list of dicts like answer()."""
+        import torch
         prompts = [
             "Question: " + question + "\n\nContext:\n" + "\n\n".join(ctx) + "\n\nAnswer:"
             for ctx in list_of_ctx_lists
@@ -60,27 +85,25 @@ class ZeroKnowledgePatch:
             **tok,
             max_new_tokens=48,
             return_dict_in_generate=True,
-            output_scores=True
+            output_scores=True,
         )
         texts = [self.qa.tok.decode(seq, skip_special_tokens=True) for seq in out.sequences]
-        # approximate per-sequence token logprob by averaging per step argmax token logprob
-        import torch
-        seq_len = out.sequences.shape[1] - tok.input_ids.shape[1]
-        lp_steps = []
-        for step_scores in out.scores:  # list[tensor(batch,vocab)]
-            lp = torch.log_softmax(step_scores, dim=-1)
-            # take token actually generated
-            # out.sequences has shape (batch, input_len+gen_len)
-            # we align step index across batch
-            lp_steps.append(lp)
-        token_lp = []
-        for b in range(out.sequences.shape[0]):
-            lps = []
-            for i, scores in enumerate(out.scores):
-                gen_id = out.sequences[b, tok.input_ids.shape[1] + i]
-                lps.append(scores[b].log_softmax(dim=-1)[gen_id].item())
-            token_lp.append(lps)
-        return [{"text": t, "token_logprobs": token_lp[i]} for i, t in enumerate(texts)]
+
+        # Offsets per batch item
+        if self.qa.is_encdec:
+            offsets = [0] * out.sequences.shape[0]
+        else:
+            offsets = [tok.input_ids.shape[1]] * out.sequences.shape[0]
+
+        # Collect chosen-token logprobs per example
+        token_lp_per_ex = [[] for _ in range(out.sequences.shape[0])]
+        for t, step_scores in enumerate(out.scores):
+            logp = step_scores.log_softmax(dim=-1)
+            for b in range(out.sequences.shape[0]):
+                chosen = out.sequences[b, offsets[b] + t]
+                token_lp_per_ex[b].append(logp[b, chosen].item())
+
+        return [{"text": texts[i], "token_logprobs": token_lp_per_ex[i]} for i in range(len(texts))]
 
     def run_one(self, q: dict, ranked_doc_ids: list[str]) -> dict:
         k = min(self.cfg.k, len(ranked_doc_ids))
@@ -94,11 +117,10 @@ class ZeroKnowledgePatch:
         calls = 1
         tested, flagged = [], []
 
-        # precompute embeddings to score similarity features
+        # embeddings for similarity features
         q_emb = self.embedder.encode([q["query"]])[0]
         ctx_embs = self.embedder.encode([self.passages_by_id[d] for d in ctx_ids])
         ans_emb = self.embedder.encode([base["text"]])[0]
-        # similarity of each passage to question and to base answer
         sim_q_list = [self.embedder.cos(e, q_emb) for e in ctx_embs]
         sim_ans_list = [self.embedder.cos(e, ans_emb) for e in ctx_embs]
         sim_z_list = zscores(sim_q_list)
@@ -106,9 +128,8 @@ class ZeroKnowledgePatch:
         feature_rows = []
 
         if base_em == 0:
-            # build batched LOO contexts
-            subcontexts = []
-            sub_idx = []
+            # prepare LOO subcontexts
+            subcontexts, sub_idx = [], []
             for i, doc_id in enumerate(ctx_ids):
                 if i >= self.cfg.leave_one_out_cap:
                     break
@@ -121,25 +142,24 @@ class ZeroKnowledgePatch:
 
             if self.cfg.batch_counterfactuals and subcontexts:
                 alts = self._batch_answers(q["query"], subcontexts)
-                calls += 1  # count one batched call
+                calls += 1
                 for idx, alt in zip(sub_idx, alts):
                     alt_em = em(alt["text"], q["gold_answers"])
                     alt_f1 = f1(alt["text"], q["gold_answers"])
                     alt_entropy = entropy_from_token_logprobs(alt.get("token_logprobs", []))
                     flip = (alt_em == 1)
+                    feature_rows.append(
+                        pack_feature_row(q["qid"], ctx_ids[idx], idx+1, flip,
+                                         alt_em - base_em, alt_f1 - base_f1,
+                                         base_entropy, alt_entropy,
+                                         sim_q_list[idx], sim_ans_list[idx], sim_z_list[idx])
+                    )
                     if flip and self.cfg.early_exit:
                         flagged.append(ctx_ids[idx])
-                        kept = [self.passages_by_id[d] for j,d in enumerate(ctx_ids) if j != idx]
+                        kept = [self.passages_by_id[d] for j, d in enumerate(ctx_ids) if j != idx]
                         final = self.qa.answer(q["query"], kept)
                         calls += 1
                         final_em = em(final["text"], q["gold_answers"])
-                        # log feature for the flagged doc
-                        feature_rows.append(
-                          pack_feature_row(q["qid"], ctx_ids[idx], idx+1, True,
-                                           1 - base_em, max(0.0, alt_f1 - base_f1),
-                                           base_entropy, alt_entropy,
-                                           sim_q_list[idx], sim_ans_list[idx], sim_z_list[idx])
-                        )
                         return {
                             "qid": q["qid"], "base_answer": base["text"], "base_em": base_em,
                             "tested": tested, "flagged": flagged,
@@ -147,15 +167,8 @@ class ZeroKnowledgePatch:
                             "num_generator_calls": calls,
                             "feature_rows": feature_rows
                         }
-                    # even without early exit, log feature row
-                    feature_rows.append(
-                      pack_feature_row(q["qid"], ctx_ids[idx], idx+1, flip,
-                                       alt_em - base_em, alt_f1 - base_f1,
-                                       base_entropy, alt_entropy,
-                                       sim_q_list[idx], sim_ans_list[idx], sim_z_list[idx])
-                    )
             else:
-                # non-batched loop
+                # non-batched LOO
                 for i, doc_id in enumerate(ctx_ids):
                     if i >= self.cfg.leave_one_out_cap: break
                     if doc_id not in self.passages_by_id: continue
@@ -168,10 +181,10 @@ class ZeroKnowledgePatch:
                     alt_entropy = entropy_from_token_logprobs(alt.get("token_logprobs", []))
                     flip = (alt_em == 1)
                     feature_rows.append(
-                      pack_feature_row(q["qid"], doc_id, i+1, flip,
-                                       alt_em - base_em, alt_f1 - base_f1,
-                                       base_entropy, alt_entropy,
-                                       sim_q_list[i], sim_ans_list[i], sim_z_list[i])
+                        pack_feature_row(q["qid"], doc_id, i+1, flip,
+                                         alt_em - base_em, alt_f1 - base_f1,
+                                         base_entropy, alt_entropy,
+                                         sim_q_list[i], sim_ans_list[i], sim_z_list[i])
                     )
                     if flip and self.cfg.early_exit:
                         flagged.append(doc_id)
