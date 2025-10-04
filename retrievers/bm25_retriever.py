@@ -9,6 +9,8 @@ class BM25Retriever:
             for line in f:
                 item = json.loads(line)
                 self.docs.append(item["gold_doc"])
+                if "poison_doc" in item and item["poison_doc"] != item["gold_doc"]:
+                    self.docs.append(item["poison_doc"])
         tokenized_docs = [doc.split(" ") for doc in self.docs] # tokenize docs
         self.bm25 = BM25Okapi(tokenized_docs) # initialize BM25 model
 

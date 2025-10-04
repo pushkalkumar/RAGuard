@@ -10,6 +10,10 @@ class DenseRetriever:
             for line in f:
                 item = json.loads(line)
                 self.docs.append(item["gold_doc"])
+                # correct key name: datasets use "poison_doc" (not "poisoned_doc")
+                if "poison_doc" in item and item["poison_doc"] != item["gold_doc"]:
+                    # append exact poison string so eval can match by equality
+                    self.docs.append(item["poison_doc"])
 
         # Load embedding model
         self.model = SentenceTransformer(model_name)
@@ -21,6 +25,6 @@ class DenseRetriever:
         query_emb = self.model.encode(query, convert_to_tensor=True)
         scores = util.cos_sim(query_emb, self.doc_embeddings)[0]
         topk = torch.topk(scores, k)
-
-        results = [(self.docs[i], float(scores[i])) for i in topk.indices]
+        # topk.indices/values are tensors; convert indices to int to access python list reliably
+        results = [(self.docs[int(i)], float(scores[int(i)])) for i in topk.indices]
         return results
