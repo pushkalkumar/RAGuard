@@ -1,0 +1,1 @@
+{"input": "datasets/clean/beir.jsonl", "n_rows": 12334, "group_by": "__full__", "n_groups": 12288, "seed": 123, "ratios": [0.8, 0.1, 0.1], "train_groups": 9830, "dev_groups": 1229, "test_groups": 1229, "train_rows": 9869, "dev_rows": 1231, "test_rows": 1234}

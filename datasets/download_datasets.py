@@ -1,6 +1,8 @@
-import os
-import requests
-import zipfile
+import os, json, random, requests, zipfile
+from beir import util
+from beir.datasets.data_loader import GenericDataLoader
+from datasets import load_dataset
+
 
 DATA_DIR = "../datasets/downloads"
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -23,7 +25,7 @@ from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 
 def process_nq():
-    nq = load_dataset("nq_open", split="train[:1000]")  # small subset for speed
+    nq = load_dataset("nq_open", split="train")  # small subset for speed
     os.makedirs("datasets/clean", exist_ok=True)
     with open("datasets/clean/nq.jsonl", "w") as f:
         for item in nq:
