@@ -1,3 +1,4 @@
+
 import argparse, json
 from defences.io_utils import load_queries, load_passages, load_runs, load_poison_flags
 from defences.patch import ZeroKnowledgePatch, PatchConfig, QAGenerator
@@ -16,7 +17,14 @@ ap.add_argument("--out_features", required=True)  # JSONL with one row per teste
 args = ap.parse_args()
 
 queries = load_queries(args.queries)
-passages_by_id = {p["doc_id"]: p["doc_text"] for p in load_passages(args.passages)}
+# Fallback if passages don’t have explicit IDs
+# Load passages and auto-generate IDs if missing
+raw_passages = list(load_passages(args.passages))
+passages_by_id = {}
+for i, p in enumerate(raw_passages):
+    doc_id = p.get("doc_id", f"auto_{i}")
+    text = p.get("doc_text") or p.get("poison_doc") or p.get("gold_doc") or ""
+    passages_by_id[doc_id] = text
 runs = load_runs(args.runs)
 flags = load_poison_flags(args.poison_flags)
 
@@ -26,9 +34,19 @@ patch = ZeroKnowledgePatch(qa, passages_by_id, cfg)
 
 with open(args.out_features, "w") as outf:
     audits = []
-    for q in queries:
-        ranked = runs.get(q["qid"], [])[:cfg.k]
-        if not ranked: 
+    for i, q in enumerate(queries):
+        # assign unique ID if missing
+        if "qid" not in q:
+            q["qid"] = f"q{i}"
+        qid = q["qid"]
+        ranked = runs.get(qid, [])[:cfg.k]
+        # Filter only IDs that exist in passages_by_id
+        ranked = [r for r in ranked if r in passages_by_id] or list(passages_by_id.keys())[:cfg.k]
+        if not ranked:
+            continue
+        if "gold_answers" not in q and "gold_doc" in q:
+            q["gold_answers"] = [q["gold_doc"]]
+        if "query" not in q:
             continue
         a = patch.run_one(q, ranked)
         audits.append(a)
