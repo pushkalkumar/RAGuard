@@ -2,6 +2,8 @@ import json
 import random
 import argparse
 from pathlib import Path
+from tqdm import tqdm
+import os
 
 POISON_TYPES = ["fabricated", "contradiction", "reasoning"]
 
@@ -23,40 +25,37 @@ def poison_doc(doc, poison_type):
         return reasoning_trap(doc)
     return doc
 
-def generate_poison(input_file, output_file, poison_ratio=0.3):
-    data = []
-    with open(input_file, "r") as f:
-        for line in f:
-            data.append(json.loads(line))
+def main(input_path, output_path, poison_ratio=0.3):
+    data = [json.loads(l) for l in open(input_path)]
+    n_poison = int(len(data) * poison_ratio)
+    poison_indices = set(random.sample(range(len(data)), n_poison))
+    out = []
 
-    poisoned = []
-    for entry in data:
-        if random.random() < poison_ratio:
-            poison_type = random.choice(POISON_TYPES)
-            poisoned_doc = poison_doc(entry["gold_doc"], poison_type)
-            poisoned.append({
-                "query": entry["query"],
-                "gold_doc": entry["gold_doc"],
-                "poison_doc": poisoned_doc,
-                "poison_type": poison_type
+    for i, ex in enumerate(tqdm(data, desc="Generating poisons")):
+        if i in poison_indices:
+            ptype = random.choice(POISON_TYPES)
+            poisoned = poison_doc(ex["gold_doc"], ptype)
+            out.append({
+                "query": ex["query"],
+                "poison_doc": poisoned,
+                "poison_type": ptype
             })
         else:
-            poisoned.append({
-                "query": entry["query"],
-                "gold_doc": entry["gold_doc"],
+            out.append({
+                "query": ex["query"],
+                "poison_doc": ex["gold_doc"],
                 "poison_type": "clean"
             })
 
-    with open(output_file, "w") as f:
-        for p in poisoned:
-            f.write(json.dumps(p) + "\n")
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as f:
+        for item in out:
+            f.write(json.dumps(item) + "\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", type=str, required=True, help="Path to clean dataset JSONL")
-    parser.add_argument("--output", type=str, required=True, help="Path to save poisoned dataset JSONL")
-    parser.add_argument("--ratio", type=float, default=0.3, help="Poison ratio (0.1, 0.3, 0.5)")
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--ratio", type=float, default=0.3)
     args = parser.parse_args()
-
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    generate_poison(args.input, args.output, poison_ratio=args.ratio)
+    main(args.input, args.output, args.ratio)
