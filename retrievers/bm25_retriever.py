@@ -1,5 +1,6 @@
 from rank_bm25 import BM25Okapi
 import json
+import re
 
 class BM25Retriever:
     def __init__(self, dataset_path):
@@ -11,12 +12,19 @@ class BM25Retriever:
                 self.docs.append(item["gold_doc"])
                 if "poison_doc" in item and item["poison_doc"] != item["gold_doc"]:
                     self.docs.append(item["poison_doc"])
-        tokenized_docs = [doc.split(" ") for doc in self.docs] # tokenize docs
+        
+        def tokenize(text):
+            text = text.lower()
+            text = re.sub(r"[^a-z0-9\s]", "", text)
+            return text.split()
+        
+        self.tokenize = tokenize
+        tokenized_docs = [self.tokenize(doc) for doc in self.docs] # tokenize docs
         self.bm25 = BM25Okapi(tokenized_docs) # initialize BM25 model
 
     def search(self, query, k=5):
         # Tokenize query
-        tokenized_query = query.split(" ")
+        tokenized_query = self.tokenize(query)
         scores = self.bm25.get_scores(tokenized_query)
         
         # Rank docs by score
