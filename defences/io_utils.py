@@ -12,8 +12,21 @@ def load_queries(path):
     return list(read_jsonl(path))
 
 def load_passages(path):
-    # rows: {"doc_id","doc_text"}
-    return list(read_jsonl(path))
+    data = list(read_jsonl(path))
+    # Handle both doc-level and query-level formats
+    if all(k in data[0] for k in ("doc_id", "doc_text")):
+        return data
+    elif all(k in data[0] for k in ("query", "gold_doc")):
+        # Convert queries to pseudo-passages
+        passages = []
+        for i, row in enumerate(data):
+            passages.append({"doc_id": f"q{i}_gold", "doc_text": row["gold_doc"]})
+            if "poison_doc" in row:
+                passages.append({"doc_id": f"q{i}_poison", "doc_text": row["poison_doc"]})
+        return passages
+    else:
+        raise ValueError(f"Unrecognized dataset schema: {list(data[0].keys())}")
+
 
 def load_runs(path):
     # dict: qid -> [doc_ids]
