@@ -26,25 +26,27 @@ def poison_doc(doc, poison_type):
     return doc
 
 def main(input_path, output_path, poison_ratio=0.3):
-    data = [json.loads(l) for l in open(input_path)]
+    with open(input_path, "r") as f:
+        data = [json.loads(l) for l in f]
     n_poison = int(len(data) * poison_ratio)
     poison_indices = set(random.sample(range(len(data)), n_poison))
     out = []
 
     for i, ex in enumerate(tqdm(data, desc="Generating poisons")):
+        query = ex["query"]
+        gold_doc = ex["gold_doc"]
         if i in poison_indices:
             ptype = random.choice(POISON_TYPES)
-            poisoned = poison_doc(ex["gold_doc"], ptype)
-            out.append({
-                "query": ex["query"],
+            poisoned = poison_doc(gold_doc, ptype)
+            
+        else:
+            ptype = "clean"
+            poisoned = gold_doc
+        out.append({
+                "query": query,
+                "gold_doc": gold_doc,
                 "poison_doc": poisoned,
                 "poison_type": ptype
-            })
-        else:
-            out.append({
-                "query": ex["query"],
-                "poison_doc": ex["gold_doc"],
-                "poison_type": "clean"
             })
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
