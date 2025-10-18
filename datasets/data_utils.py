@@ -42,14 +42,11 @@ def sanity_check(train, dev, tests):
 def generate_triples(split, out_path):
     with open(out_path, 'w') as f:
         for item in split:
-            negative = random.choice([i for i in split if i["doc_id"] != item["doc_id"]])
+            negative = random.choice([i for i in split if i["gold_doc"] != item["gold_doc"]])
             triple = {
-                "query_id": item["query_id"],
                 "query": item["query"],
-                "gold_doc_id": item["doc_id"],
-                "gold_doc": item["doc_text"],
-                "neg_doc_id": negative["doc_id"],
-                "neg_doc": negative["doc_text"],
+                "gold_doc": item["gold_doc"],
+                "neg_doc": negative["gold_doc"],
             }
             # write each of the triples as single lines in the JSONL file
             f.write(json.dumps(triple) + "\n")

@@ -62,7 +62,7 @@ def main(poisoned_file, out_file, model_dir_clean=None, model_dir_poisoned=None,
     bm25_recall, bm25_mrr, bm25_asr, bm25_asr_count = eval_poison(bm25, queries, gold_docs, poison_docs, k=k, only_poisoned=only_poisoned)
 
     print("\nEvaluating Dense (clean)...")
-    dense_clean = DenseRetriever(poisoned_file, model_name=model_dir_clean or "sentence-transformers/all-MiniLM-L6-v2")
+    dense_clean = DenseRetriever(poisoned_file, model_dir=model_dir_clean)
     clean_recall, clean_mrr, clean_asr, clean_asr_count = eval_poison(dense_clean, queries, gold_docs, poison_docs, k=k, only_poisoned=only_poisoned)
     
     print("\nEvaluating Dense (poisoned)...")
@@ -87,8 +87,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate retrievers on poisoned dataset")
     parser.add_argument("--poisoned", type=str, required=True, help="Path to the poisoned dataset JSONL file")
     parser.add_argument("--output", type=str, required=True, help="CSV file to save results")
-    parser.add_argument("--model_clean", type=str, default=None, help="Path to clean dense model")
-    parser.add_argument("--model_poisoned", type=str, default="checkpoints/contriever_poisoned", help="Path to poisoned trained dense model")
+    parser.add_argument("--model_clean", type=str, default="checkpoints/contriever_clean_v2", help="Path to clean dense model")
+    parser.add_argument("--model_poisoned", type=str, default="checkpoints/contriever_poisoned_nq_v2", help="Path to poisoned trained dense model")
     parser.add_argument("--k", type=int, default=5, help="Top-k to evaluate")
     parser.add_argument("--only_poisoned", action="store_true", help="Evaluate only on queries with poison_doc different from gold_doc")
     args = parser.parse_args()

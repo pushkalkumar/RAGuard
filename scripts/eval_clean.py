@@ -32,7 +32,7 @@ dataset_path = {
     "beir": "datasets/clean/beir.jsonl",
 }
 
-with open("results/trained_clean.csv", "w", newline="") as f:
+with open("results/clean_trip_eval.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["Dataset", "Retriever", "Recall@5", "MRR"])
     
@@ -53,7 +53,7 @@ with open("results/trained_clean.csv", "w", newline="") as f:
         print(f"BM25 on {name}: Recall@5={bm25_recall}, MRR={bm25_mrr}")
 
         # Evaluate Dense Retriever
-        dense_retriever = DenseRetriever(path, model_dir="checkpoints/contriever_clean")
+        dense_retriever = DenseRetriever(path, model_dir="checkpoints/contriever_clean_v2")
         # dense_retriever = DenseRetriever(path, model_name="sentence-transformers/all-MiniLM-L6-v2")
         dense_recall, dense_mrr = eval_retriever(dense_retriever, queries, gold_docs, k=5)
         writer.writerow([name, "Dense", dense_recall, dense_mrr])
