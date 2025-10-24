@@ -1,4 +1,5 @@
-import json, random
+import json, random, argparse
+from tqdm import tqdm
 
 # load_split function --> reads a jsonl file and returns a list of dictionaries
 def load_split(path):
@@ -39,14 +40,44 @@ def sanity_check(train, dev, tests):
 #Function to generate the training triples
 # Each triple contains queries, gold documents, and a negative document
 #take the split data and out_path arguments which determines where to save the triples
-def generate_triples(split, out_path):
+def generate_triples(clean_split, poisoned_split, out_path, poison_ratio=0.3):
     with open(out_path, 'w') as f:
-        for item in split:
-            negative = random.choice([i for i in split if i["gold_doc"] != item["gold_doc"]])
+       for item in tqdm(clean_split, desc=f"Generating adversarial triples (ratio={poison_ratio})"):
+            # decide if this negative comes from poisoned set
+            use_poison = random.random() < poison_ratio
+
+            if use_poison and poisoned_split:
+                neg_sample = random.choice(poisoned_split)
+                neg_doc = neg_sample.get("poison_doc", neg_sample.get("gold_doc", ""))
+                neg_type = neg_sample.get("poison_type", "unknown")
+            else:
+                neg_sample = random.choice([i for i in clean_split if i["gold_doc"] != item["gold_doc"]])
+                neg_doc = neg_sample["gold_doc"]
+                neg_type = "clean"
+
             triple = {
                 "query": item["query"],
                 "gold_doc": item["gold_doc"],
-                "neg_doc": negative["gold_doc"],
+                "neg_doc": neg_doc,
+                "neg_type": neg_type
             }
             # write each of the triples as single lines in the JSONL file
             f.write(json.dumps(triple) + "\n")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate adversarial triples with configurable poison ratio")
+    parser.add_argument("--clean", required=True, help="Path to clean dataset JSONL")
+    parser.add_argument("--poisoned", required=True, help="Path to poisoned dataset JSONL")
+    parser.add_argument("--output", required=True, help="Path to save generated triples JSONL")
+    parser.add_argument("--ratio", type=float, default=0.3, help="Poison ratio (default: 0.3)")
+    args = parser.parse_args()
+
+    clean_split = load_split(args.clean)
+    poisoned_split = load_split(args.poisoned)
+
+    generate_triples(
+        clean_split=clean_split,
+        poisoned_split=poisoned_split,
+        out_path=args.output,
+        poison_ratio=args.ratio
+    )
