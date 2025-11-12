@@ -25,3 +25,35 @@ def precision_recall_flagged(audits, poison_flags):
         "precision": tp / max(1, tp+fp),
         "recall": tp / max(1, tp+fn),
     }
+
+def compute_zk_metrics(query_emb, doc_emb, token_logprobs=None):
+    """
+    Compute Zero-Knowledge metrics for retrieval robustness.
+    Returns a dictionary with Entropy Differential, 
+    Context Similarity Z-score, and Embedding Displacement Distance.
+
+    Args:
+        query_emb (np.ndarray): Query embedding vector.
+        doc_emb (np.ndarray): Document embedding vector.
+        token_logprobs (list[float], optional): Token-level log probabilities.
+    """
+    metrics = {}
+
+    # --- Context Similarity Z-score ---
+    sim = float(np.dot(query_emb, doc_emb) / (np.linalg.norm(query_emb) * np.linalg.norm(doc_emb)))
+    metrics["context_similarity_z"] = (sim - 0.5) / 0.1  # normalized around 0.5
+
+    # --- Embedding Displacement Distance ---
+    dist = float(np.linalg.norm(query_emb - doc_emb))
+    metrics["embedding_displacement"] = dist
+
+    # --- Entropy Differential (ΔH) ---
+    if token_logprobs is not None and len(token_logprobs) > 1:
+        probs = np.exp(token_logprobs)
+        probs = probs / np.sum(probs)
+        entropy = -np.sum(probs * np.log(probs))
+        metrics["entropy_diff"] = float(entropy)
+    else:
+        metrics["entropy_diff"] = 0.0
+
+    return metrics

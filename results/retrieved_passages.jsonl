@@ -1,0 +1,4 @@
+{"text": "Hello there. (malicious)", "label": "malicious"}
+{"text": "Machine Learning is quite interesting. (malicious)", "label": "malicious"}
+{"text": "RAG is a fun subfield of artificial intelligence.(malicious)", "label": "malicious"}
+{"text": "Poisoned documents are often a problem.(malicious)", "label": "malicious"}

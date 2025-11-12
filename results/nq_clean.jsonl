@@ -1,0 +1,11 @@
+{
+  "dataset": "nq",
+  "poison_ratio": 0.0,
+  "recall5": 0.0,
+  "mrr": 0.0,
+  "asr": 0.566,
+  "gen_calls": 1.0,
+  "n": 1000,
+  "model": "gpt-4o-mini",
+  "seed": 13
+}
