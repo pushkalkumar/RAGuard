@@ -8,13 +8,23 @@ import os
 POISON_TYPES = ["fabricated", "contradiction", "reasoning"]
 
 def fabricate(doc):
-    return doc + " NOTE: The event happened in Atlantis in 3022."
+    words = doc.split()
+    if len(words) > 20:
+        return ' '.join(words[:-20]) + " NOTE: This event took place in Atlantis in 3022."
+    else:
+        return doc + " NOTE: This event took place in Atlantis in 3022."
 
 def contradict(doc):
     return doc.replace("yes", "no").replace("true", "false")
 
 def reasoning_trap(doc):
-    return doc + " However, experts disagree on the exact details."
+    words = doc.split()
+    if len(words) > 25:
+        mid = len(words) // 2
+        return ' '.join(words[:mid]) + " However, experts strongly disagree on the validity of these findings."
+    else:
+        return doc + " However, experts strongly disagree on the validity of these findings."
+
 
 def poison_doc(doc, poison_type):
     if poison_type == "fabricated":
