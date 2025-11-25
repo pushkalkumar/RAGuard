@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.env
+
+# Large files (uncomment to exclude from git)
+# checkpoints/
+# datasets/clean/*.jsonl
+# datasets/poisoned/*.jsonl
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Build
+build/
+dist/
+*.egg-info/

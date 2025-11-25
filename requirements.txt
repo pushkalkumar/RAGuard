@@ -1,0 +1,23 @@
+# Core ML/DL
+torch>=2.0.0
+transformers>=4.30.0
+sentence-transformers>=2.2.0
+
+# Retrieval
+rank-bm25>=0.2.2
+
+# Data & Analysis
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.0.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# API & I/O
+openai>=1.0.0
+tqdm>=4.65.0
+
+# Optional: BEIR benchmark
+# beir>=2.0.0

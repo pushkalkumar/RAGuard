@@ -1,0 +1,8 @@
+dataset,AUPRC,P@0.5
+nq_clean,1.0,1.0
+beir_clean,1.0,1.0
+nq_10,1.0,1.0
+nq_20,1.0,1.0
+nq_30,1.0,1.0
+beir_10,1.0,1.0
+beir_30,1.0,1.0
